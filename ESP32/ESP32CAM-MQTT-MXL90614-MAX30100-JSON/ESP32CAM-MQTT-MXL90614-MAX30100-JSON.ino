@@ -91,7 +91,7 @@ void setup() {
   pinMode (ledPin, OUTPUT);
   pinMode (ledPin2, OUTPUT);
   digitalWrite (ledPin, HIGH);
-  digitalWrite (ledPin2, HIGH);
+  digitalWrite (ledPin2, LOW);
 
 //Pines Indicadores de funcionamiento del MAX30100
   Serial.println();
@@ -189,12 +189,12 @@ void loop() {
       particleSensor.nextSample(); //We're finished with this sample so move to next sample
 
       //send samples and calculation result to terminal program through UART
-      Serial.print(F("red="));
-      Serial.print(redBuffer[i], DEC);
-      Serial.print(F(", ir="));
-      Serial.print(irBuffer[i], DEC);
+      //Serial.print(F("red="));
+      //Serial.print(redBuffer[i], DEC);
+      //Serial.print(F(", ir="));
+      //Serial.print(irBuffer[i], DEC);
 
-      Serial.print(F(", HR="));
+      Serial.print(F("HR="));
       Serial.print(heartRate, DEC);
 
       Serial.print(F(", HRvalid="));
@@ -217,7 +217,7 @@ void loop() {
     timeLastMQTT = timeNow; // Actualización de seguimiento de tiempo
 
     //Se construye el string correspondiente al JSON que contiene 3 variables
-    String json = "{\"hr\"=" + String (heartRate) + ",\"spo2\":" + String (spo2) +"}";
+    String json = "{\"hr\"=" + String (heartRate) + ",\"hrv\":" + String (validHeartRate) + ",\"spo2\":" + String (spo2) +",\"spo2v\":"+String (validSPO2) +"}";
     Serial.println(json); // Se imprime en monitor solo para poder visualizar que el string esta correctamente creado
     int str_len = json.length() + 1;//Se calcula la longitud del string
     char char_array[str_len];//Se crea un arreglo de caracteres de dicha longitud
