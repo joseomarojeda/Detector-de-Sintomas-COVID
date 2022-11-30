@@ -1,12 +1,17 @@
 /*
- * Programa de detector de Sintomas COVID
+ * Programa del Detector de Síntomas COVID 
  * por: Jose Omar Ojeda Aguilar
- * Fecha:30 de agosto del 2022
+ * Fecha: 30 de Agosto del 2022
  * 
- * Este prrograma realizar la lectura de los sensores MAX30110 y MLX90614
- * para medir los los principales indicadores de sintomas de COVID, los cuales
- * son ritmo cardiaco, temperatura y oxigenación en la sangre. Se enviara
- * un JSONpor MQTT con todas las variables. Este programa es para el micro
+ * Basado en:Optical SP02 Detection (SPK Algorithm) using the MAX30105 Breakout  
+ * By: Nathan Seidle @ SparkFun Electronics  
+ * Date: October 19th, 2016  
+ * https://github.com/sparkfun/MAX30105_Breakout
+ * 
+ * Este programa realizara la lectura de los sensores MAX30100 y MLX90614
+ * para medir los principales indicadores de síntomas de COVID, los cuales
+ * son ritmo cardiaco, temperatura y oxigenación en la sangre. Se enviará
+ * un JSON por MQTT con todas las variables. Este programa es para el micro
  * controlador ESP32CAM
  * 
  * MAX30100     ESP32CAM
@@ -21,11 +26,10 @@
  * SDA----------14
  * SCL----------15
  * 
-
  */
 
 //Bibliotecas
-#include <ESP8266WiFi.h>  // Biblioteca para el control de WiFi
+#include <WiFi.h>  // Biblioteca para el control de WiFi
 #include <PubSubClient.h> //Biblioteca para conexion MQTT
 
 //Datos de WiFi
@@ -109,7 +113,7 @@ void loop() {
     int str_len = json.length() + 1;//Se calcula la longitud del string
     char char_array[str_len];//Se crea un arreglo de caracteres de dicha longitud
     json.toCharArray(char_array, str_len);//Se convierte el string a char array    
-    client.publish("codigoIoT/-detectorSintomas/flow", char_array); // Esta es la función que envía los datos por MQTT, especifica el tema y el valor
+    client.publish("codigoIoT/detectorSintomas/flow", char_array); // Esta es la función que envía los datos por MQTT, especifica el tema y el valor
   }// fin del if (timeNow - timeLast > wait)
 }// fin del void loop ()
 
@@ -137,17 +141,17 @@ void callback(char* topic, byte* message, unsigned int length) {
   // En esta parte puedes agregar las funciones que requieras para actuar segun lo necesites al recibir un mensaje MQTT
 
   // Ejemplo, en caso de recibir el mensaje true - false, se cambiará el estado del led soldado en la placa.
-  // El NodeMCU está suscrito al tema esp/output
-  if (String(topic) == "codigoIoT/-detectorSintomas/esp") {  // En caso de recibirse mensaje en el tema codigoIoT/-detectorSintomas/esp
+  // El NodeMCU está suscrito al tema CodigoIoT/detectorSintomas/esp
+  if (String(topic) == "CodigoIoT/detectorSintomas/esp") {  // En caso de recibirse mensaje en el tema CodigoIoT/detectorSintomas/esp
     if(messageTemp == "true"){
       Serial.println("Led encendido");
       digitalWrite(ledPin2, LOW);
-    }// fin del if (String(topic) == "codigoIoT/-detectorSintomas/esp")
+    }// fin del if (String(topic) == "CodigoIoT/detectorSintomas/esp")
     else if(messageTemp == "false"){
       Serial.println("Led apagado");
       digitalWrite(ledPin2, HIGH);
     }// fin del else if(messageTemp == "false")
-  }// fin del if (String(topic) == "esp32/output")
+  }// fin del if (String(topic) == "CodigoIoT/detectorSintomas/esp")
 }// fin del void callback
 
 // Función para reconectarse
@@ -158,8 +162,8 @@ void reconnect() {
     // Intentar reconexión
     if (client.connect("ESP32Client")) { //Pregunta por el resultado del intento de conexión
       Serial.println("Conectado");
-      client.subscribe("codigoIoT/-detectorSintomas/esp"); // Esta función realiza la suscripción al tema
-    }// fin del  if (client.connect("ESP32Client"))
+      client.subscribe("CodigoIoT/detectorSintomas/esp"); // Esta función realiza la suscripción al tema
+    }// fin del  if (client.connect("ESPC32lient"))
     else {  //en caso de que la conexión no se logre
       Serial.print("Conexion fallida, Error rc=");
       Serial.print(client.state()); // Muestra el codigo de error
