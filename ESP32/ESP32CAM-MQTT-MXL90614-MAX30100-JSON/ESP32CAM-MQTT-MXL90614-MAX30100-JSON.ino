@@ -34,7 +34,7 @@
 #include <Wire.h> //Biblioteca permita la comunicación I2C
 #include "MAX30105.h" //Biblioteca del Sensor
 #include "spo2_algorithm.h" //Biblioteca que realiza los calculos de interpretacion de sañales
-
+#include <Adafruit_MLX90614.h> //Biblioteca para el sensor de temperatura infrarojo
 //Datos de WiFi
 const char* ssid = "Totalplay-C6AA";  // Aquí debes poner el nombre de tu red
 const char* password = "C6AA0018G2Jb5XFA";  // Aquí debes poner la contraseña de tu red
@@ -46,20 +46,23 @@ IPAddress server(192,168,100,7);
 // Objetos
 WiFiClient espClient; // Este objeto maneja los datos de conexion WiFi
 PubSubClient client(espClient); // Este objeto maneja los datos de conexion al broker
-MAX30105 particleSensor;// objeto para manejar el sensor MAX30100
+MAX30105 particleSensor; // Objeto para manejar el sensor MAX301000
+Adafruit_MLX90614 mlx = Adafruit_MLX90614(); // Objeto para manejar el MLX90614
 
-#define MAX_BRIGHTNESS 255//Constante para el MAX30105
+#define MAX_BRIGHTNESS 255 // Constante de brillo para el MAX30105
 
 // Variables
 int ledPin = 33;  // Para indicar el estatus de conexión
 int ledPin2 = 4; // Para mostrar mensajes recibidos
-long timeNow, timeLastMQTT, timeLastMax30100; // Variables de control de tiempo no bloqueante
+long timeNow, timeLastMQTT, timeLastMax30100, timeLastMLX; // Variables de control de tiempo no bloqueante
 int wait = 5000;  // Indica la espera cada 5 segundos para envío de mensajes MQTT
-int waitMax30100 = 4000; // Espera para lectura del sensor MAX30100
+int waitMax30100 = 4000; // Espera para lectua del sensor MAX30100
+int waitMLX = 500; // Espera para lectura del sensor MLX90614
 
-#define MAX_BRIGHTNESS 255//Constante para el MAX30105
 
-//bloque de constantes necesarias para el calculo del BPM y SPO2
+#define MAX_BRIGHTNESS 255 // Constante de brillo para el MAX30105
+
+// Bloque de constantes necesarias para el calculo del BPM y SPO2
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
 //Arduino Uno doesn't have enough SRAM to store 100 samples of IR led data and red led data in 32-bit format
 //To solve this problem, 16-bit MSB of the sampled data will be truncated. Samples become 16-bit data.
@@ -77,23 +80,24 @@ int32_t heartRate; //heart rate value
 int8_t validHeartRate; //indicator to show if the heart rate calculation is valid
 
 //byte pulseLED = 16; //Must be on PWM pin
-//byte readLED = 2; //Blinks with each data read
+//byte readLED = 2; //Blinks with each data 
 
+int tir; 
 
 // Inicialización del programa
 void setup() {
   // Iniciar comunicación serial
   Serial.begin (115200);
-  //Pines indicadores de conexión
-  //pinMode(pulseLED, OUTPUT);
-  //pinMode(readLED, OUTPUT);
-
+  // Pines indicadores de conexion
   pinMode (ledPin, OUTPUT);
   pinMode (ledPin2, OUTPUT);
   digitalWrite (ledPin, HIGH);
   digitalWrite (ledPin2, LOW);
 
-//Pines Indicadores de funcionamiento del MAX30100
+  //Pines Indicadores de funcionamiento del MAX30100
+  //pinMode(pulseLED, OUTPUT);
+  //pinMode(readLED, OUTPUT);
+
   Serial.println();
   Serial.println();
   Serial.print("Conectar a ");
@@ -127,14 +131,15 @@ void setup() {
   client.setCallback(callback); // Activar función de CallBack, permite recibir mensajes MQTT y ejecutar funciones a partir de ellos
   delay(1500);  // Esta espera es preventiva, espera a la conexión para no perder información
 
- // Initialize sensor
+  // Initialize sensor
   Wire.begin (14,15);
-  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //Use default I2C port, 400kHz speed
+  if (!particleSensor.begin(Wire)) //Use default I2C port, 400kHz speed // , I2C_SPEED_FAST
   {
     Serial.println(F("MAX30105 was not found. Please check wiring/power."));
     while (1);
   }
-  //Seccion que espera a que el paciente se coloque el sensor para realizar la lectura
+
+  // Seccion que espera a que el paciente se coloque el sensor para realizar la lectura
   //Serial.println(F("Attach sensor to finger with rubber band. Press any key to start conversion"));
   //while (Serial.available() == 0) ; //wait until user presses a key
   //Serial.read();
@@ -148,10 +153,23 @@ void setup() {
 
   particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
 
-  max30100First (); //Esta función realiza las primeras 100 Lecturas
+  max30100First (); // Esta funcion realiza las primears 100 lecturas
 
+  Serial.println("Adafruit MLX90614 test");
+
+  
+  if (!mlx.begin(0x5A, &Wire)) { //, I2C_SPEED_FAST
+    Serial.println("Error connecting to MLX sensor. Check wiring.");
+    while (1);
+  };
+
+  Serial.print("Emissivity = "); Serial.println(mlx.readEmissivity());
+  Serial.println("================================================");
+  delay (500);
   timeLastMQTT = millis (); // Inicia el control de tiempo de envio mqtt
   timeLastMax30100 = millis (); // Inicia el control de tiempo del sensor
+  timeLastMLX = millis (); // Inicia el control de tiempo del sensor MLX90614
+
   
 }// fin del void setup ()
 
@@ -169,7 +187,7 @@ void loop() {
     timeLastMax30100 = timeNow;
 
     //Bloque de programacion de lectura del sensor
-  //dumping the first 25 sets of samples in the memory and shift the last 75 sets of samples to the top
+    //dumping the first 25 sets of samples in the memory and shift the last 75 sets of samples to the top
     for (byte i = 25; i < 100; i++)
     {
       redBuffer[i - 25] = redBuffer[i];
@@ -189,35 +207,38 @@ void loop() {
       particleSensor.nextSample(); //We're finished with this sample so move to next sample
 
       //send samples and calculation result to terminal program through UART
-      //Serial.print(F("red="));
-      //Serial.print(redBuffer[i], DEC);
-      //Serial.print(F(", ir="));
-      //Serial.print(irBuffer[i], DEC);
 
-      Serial.print(F("HR="));
-      Serial.print(heartRate, DEC);
+      //Serial.print(F("HR="));
+      //Serial.print(heartRate, DEC);
 
-      Serial.print(F(", HRvalid="));
-      Serial.print(validHeartRate, DEC);
+      //Serial.print(F(", HRvalid="));
+      //Serial.print(validHeartRate, DEC);
 
-      Serial.print(F(", SPO2="));
-      Serial.print(spo2, DEC);
+      //Serial.print(F(", SPO2="));
+      //Serial.print(spo2, DEC);
 
-      Serial.print(F(", SPO2Valid="));
-      Serial.println(validSPO2, DEC);
+      //Serial.print(F(", SPO2Valid="));
+      //Serial.println(validSPO2, DEC);
     }
 
     //After gathering 25 new samples recalculate HR and SP02
     maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
- 
     
   }
-    
+
+  if (timeNow - timeLastMLX > waitMLX) {
+    timeLastMLX = timeNow; // Actualización de seguimiento de tiempo
+
+    tir = mlx.readObjectTempC();
+    Serial.print("Ambient = "); Serial.print(mlx.readAmbientTempC());    
+    Serial.print("*C\tObject = "); Serial.print(tir); Serial.println("*C");
+  }
+  
   if (timeNow - timeLastMQTT > wait) { // Manda un mensaje por MQTT cada cinco segundos
     timeLastMQTT = timeNow; // Actualización de seguimiento de tiempo
 
     //Se construye el string correspondiente al JSON que contiene 3 variables
-    String json = "{\"hr\"=" + String (heartRate) + ",\"hrv\":" + String (validHeartRate) + ",\"spo2\":" + String (spo2) +",\"spo2v\":"+String (validSPO2) +"}";
+    String json = "{\"hr\":" + String (heartRate) + ",\"hrv\":" + String (validHeartRate) + ",\"spo2\":" + String (spo2) + ",\"spo2v\":"+ String (validSPO2) + ",\"tir\":"+ String(tir) + "}";
     Serial.println(json); // Se imprime en monitor solo para poder visualizar que el string esta correctamente creado
     int str_len = json.length() + 1;//Se calcula la longitud del string
     char char_array[str_len];//Se crea un arreglo de caracteres de dicha longitud
@@ -250,17 +271,17 @@ void callback(char* topic, byte* message, unsigned int length) {
   // En esta parte puedes agregar las funciones que requieras para actuar segun lo necesites al recibir un mensaje MQTT
 
   // Ejemplo, en caso de recibir el mensaje true - false, se cambiará el estado del led soldado en la placa.
-  // El NodeMCU está suscrito al tema CodigoIoT/detectorSintomas/esp
-  if (String(topic) == "CodigoIoT/detectorSintomas/esp") {  // En caso de recibirse mensaje en el tema CodigoIoT/detectorSintomas/esp
+  // El NodeMCU está suscrito al tema codigoIoT/detectorSintomas/esp
+  if (String(topic) == "codigoIoT/detectorSintomas/esp") {  // En caso de recibirse mensaje en el tema codigoIoT/detectorSintomas/esp
     if(messageTemp == "true"){
       Serial.println("Led encendido");
       digitalWrite(ledPin2, LOW);
-    }// fin del if (String(topic) == "CodigoIoT/detectorSintomas/esp")
+    }// fin del if (String(topic) == "codigoIoT/detectorSintomas/esp")
     else if(messageTemp == "false"){
       Serial.println("Led apagado");
       digitalWrite(ledPin2, HIGH);
     }// fin del else if(messageTemp == "false")
-  }// fin del if (String(topic) == "CodigoIoT/detectorSintomas/esp")
+  }// fin del if (String(topic) == "codigoIoT/detectorSintomas/esp")
 }// fin del void callback
 
 // Función para reconectarse
@@ -271,8 +292,8 @@ void reconnect() {
     // Intentar reconexión
     if (client.connect("ESP32Client")) { //Pregunta por el resultado del intento de conexión
       Serial.println("Conectado");
-      client.subscribe("CodigoIoT/detectorSintomas/esp"); // Esta función realiza la suscripción al tema
-    }// fin del  if (client.connect("ESPC32lient"))
+      client.subscribe("codigoIoT/detectorSintomas/esp"); // Esta función realiza la suscripción al tema
+    }// fin del  if (client.connect("ESP32Client"))
     else {  //en caso de que la conexión no se logre
       Serial.print("Conexion fallida, Error rc=");
       Serial.print(client.state()); // Muestra el codigo de error
@@ -284,9 +305,9 @@ void reconnect() {
   }// fin del bucle while (!client.connected())
 }// fin de void reconnect(
 
-//Funcion de primera 100 lecturas
-void max30100First (){
-   bufferLength = 100; //buffer length of 100 stores 4 seconds of samples running at 25sps
+// Funcion de primeras 100 lecturas
+void max30100First () {
+  bufferLength = 100; //buffer length of 100 stores 4 seconds of samples running at 25sps
 
   //read the first 100 samples, and determine the signal range
   for (byte i = 0 ; i < bufferLength ; i++)
