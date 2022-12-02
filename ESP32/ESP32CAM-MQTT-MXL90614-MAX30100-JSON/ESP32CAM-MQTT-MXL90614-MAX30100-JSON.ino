@@ -31,10 +31,11 @@
 //Bibliotecas
 #include <WiFi.h>  // Biblioteca para el control de WiFi
 #include <PubSubClient.h> //Biblioteca para conexion MQTT
-#include <Wire.h> //Biblioteca permita la comunicación I2C
-#include "MAX30105.h" //Biblioteca del Sensor
-#include "spo2_algorithm.h" //Biblioteca que realiza los calculos de interpretacion de sañales
-#include <Adafruit_MLX90614.h> //Biblioteca para el sensor de temperatura infrarojo
+#include <Wire.h> // Biblioteca para comunicación I2C
+#include "MAX30105.h" // Biblioteca del sensor 
+#include "spo2_algorithm.h" // Biblioteca para interpretación de señales
+#include <Adafruit_MLX90614.h> // Biblioteca para el sensor de temperatura infrarrojo
+
 //Datos de WiFi
 const char* ssid = "Totalplay-C6AA";  // Aquí debes poner el nombre de tu red
 const char* password = "C6AA0018G2Jb5XFA";  // Aquí debes poner la contraseña de tu red
