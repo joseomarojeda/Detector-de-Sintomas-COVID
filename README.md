@@ -95,3 +95,14 @@ Para observar el funcionamiento de este proyecto, deberás realizar lo siguiente
 - Esperar a que se estabilice la lectura del sensor, aproximadamente despupes de 30 segundos
 - Presionar el boton "Realizar diagnostico"
 
+
+# Evidencias
+A continuación puedes ver enlaces a las evidencias de este proyecto
+
+- [Repositorio](https://github.com/joseomarojeda/Detector-de-Sintomas-COVID.git)
+
+
+# Créditos
+
+Desarrollado por Jose Omar Ojeda Aguilar
+- (https://github.com/joseomarojeda)
